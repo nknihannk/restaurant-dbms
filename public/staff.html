@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff panel</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #ffffff; --ink: #1f1d1a; --muted: #6b655c; --line: #e2dccf;
+    --accent: #facc15; --accent-ink: #1a1200; --ok: #2e7d4f; --warn: #a15c00; --err: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15120d; --card: #201c16; --ink: #f3ede3; --muted: #a79f92; --line: #3a342b;
+            --accent: #facc15; --accent-ink: #1a1200; --ok: #6cc28c; --warn: #e0a54a; --err: #f08a82; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--card);
+           display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.25rem; margin: 0; }
+  .sub { color: var(--muted); font-size: .85rem; }
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  h2 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .orders { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .order { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--bg); }
+  .order .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .order .tn { font-size: 1.2rem; font-weight: 700; }
+  .pill { font-size: .75rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+  .pill.placed { color: var(--err); } .pill.preparing { color: var(--warn); } .pill.served { color: var(--ok); }
+  .order ul { margin: 8px 0; padding-left: 18px; }
+  .order .tot { font-weight: 700; margin: 6px 0 10px; }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: inherit; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+           padding: 6px 10px; cursor: pointer; }
+  button.pri { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .tables { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .tb { text-align: center; padding: 8px 0; border-radius: 8px; border: 1px solid var(--line); font-size: .85rem; }
+  .tb.occupied { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .stat { display: flex; gap: 20px; margin-bottom: 8px; }
+  .stat b { display: block; font-size: 1.3rem; }
+  ol { margin: 6px 0 0; padding-left: 20px; }
+  .mrow { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .mrow:last-child { border-bottom: 0; }
+  .mrow span { flex: 1; min-width: 0; }
+  .mrow input { width: 80px; font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line);
+                background: var(--bg); color: var(--ink); }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+           padding: 8px 16px; border-radius: 10px; font-size: .9rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Staff panel · Live orders</h1>
+  <span class="sub" id="updated">Loading…</span>
+</header>
+<main>
+  <div>
+    <div class="panel">
+      <h2>Open orders (unpaid)</h2>
+      <div class="orders" id="orders"></div>
+    </div>
+  </div>
+  <aside>
+    <div class="panel">
+      <h2>Tables</h2>
+      <div class="tables" id="tables"></div>
+    </div>
+    <div class="panel">
+      <h2>Sales</h2>
+      <div class="stat"><div><b id="rev">₹0</b>revenue (paid)</div><div><b id="bills">0</b>bills paid</div></div>
+      <div class="sub">Top-selling items</div>
+      <ol id="top"></ol>
+    </div>
+    <div class="panel">
+      <h2>Menu prices</h2>
+      <div id="menu"></div>
+    </div>
+  </aside>
+</main>
+<div id="toast" hidden></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const money = (n) => '₹' + Number(n).toFixed(2).replace(/\.00$/, '');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(path, method, body) {
+  const opts = { method: method || 'GET' };
+  if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+let toastTimer;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (el.hidden = true), 2500); }
+
+function orderCard(o) {
+  const time = new Date(o.order_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const next = o.status === 'placed' ? ['preparing', 'Start preparing'] : o.status === 'preparing' ? ['served', 'Mark served'] : null;
+  return '<div class="order"><div class="top"><span class="tn">Table ' + o.table_no + '</span>' +
+    '<span class="pill ' + esc(o.status) + '">' + esc(o.status) + '</span></div>' +
+    '<div class="sub">#' + o.order_id + ' · ' + esc(o.name) + ' · ' + esc(o.phone) + ' · ' + time + '</div>' +
+    '<ul>' + o.items.map((i) => '<li>' + i.quantity + ' × ' + esc(i.item_name) + '</li>').join('') + '</ul>' +
+    '<div class="tot">Total ' + money(o.total) + '</div><div class="acts">' +
+    (next ? '<button class="pri" data-act="status" data-id="' + o.order_id + '" data-s="' + next[0] + '">' + next[1] + '</button>' : '') +
+    '<button data-act="pay" data-id="' + o.order_id + '">Mark paid</button></div></div>';
+}
+
+async function refresh() {
+  try {
+    const [orders, tables, stats] = await Promise.all([api('/api/staff/orders'), api('/api/tables'), api('/api/stats')]);
+    $('#orders').innerHTML = orders.length ? orders.map(orderCard).join('') : '<div class="empty">No open orders right now.</div>';
+    $('#tables').innerHTML = tables.map((t) => '<div class="tb ' + esc(t.status) + '" title="Seats ' + t.capacity + '">T' + t.table_no + '</div>').join('');
+    $('#rev').textContent = money(stats.revenue); $('#bills').textContent = stats.paid_bills;
+    $('#top').innerHTML = stats.top_items.length ? stats.top_items.map((t) => '<li>' + esc(t.item_name) + ' — ' + t.qty + '</li>').join('') : '<li class="sub">No sales yet</li>';
+    $('#updated').textContent = 'Updated ' + new Date().toLocaleTimeString() + ' · refreshes every 5 s';
+  } catch (err) { $('#updated').textContent = 'Connection problem: ' + err.message; }
+}
+
+$('#orders').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  try {
+    if (b.dataset.act === 'status') await api('/api/staff/orders/' + b.dataset.id + '/status', 'POST', { status: b.dataset.s });
+    else if (confirm('Mark this bill as paid?')) await api('/api/pay/' + b.dataset.id, 'POST', {});
+    refresh();
+  } catch (err) { toast(err.message); }
+});
+
+async function loadMenu() {
+  const menu = await api('/api/menu');
+  $('#menu').innerHTML = menu.map((m) => '<div class="mrow"><span>' + esc(m.item_name) + '</span>' +
+    '<input type="number" min="1" step="0.01" value="' + m.price + '" aria-label="Price of ' + esc(m.item_name) + '" id="p' + m.item_id + '">' +
+    '<button data-save="' + m.item_id + '">Save</button></div>').join('');
+}
+$('#menu').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-save]'); if (!b) return;
+  try {
+    await api('/api/menu/' + b.dataset.save, 'PUT', { price: $('#p' + b.dataset.save).value });
+    toast('Price updated'); refresh();
+  } catch (err) { toast(err.message); }
+});
+
+loadMenu().catch((e) => toast(e.message));
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order at your table</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #faf7f2; --card: #ffffff; --ink: #1f1d1a; --muted: #6b655c; --line: #e6dfd3;
+    --accent: #facc15; --accent-ink: #1a1200; --ok: #2e7d4f; --warn: #a15c00; --err: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17140f; --card: #211d17; --ink: #f3ede3; --muted: #a79f92; --line: #3a342b;
+            --accent: #facc15; --accent-ink: #1a1200; --ok: #6cc28c; --warn: #e0a54a; --err: #f08a82; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: 96px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 20px 0 8px; }
+  h1 { font-size: 1.5rem; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0; }
+  .chip { display: inline-block; background: var(--accent); color: var(--accent-ink);
+          border-radius: 999px; padding: 2px 12px; font-weight: 600; font-size: .9rem; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            padding: 16px; margin: 14px 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px;
+                  border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cat { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+         margin: 18px 0 4px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .item .nm { flex: 1; min-width: 0; }
+  .item .pr { color: var(--muted); font-size: .9rem; }
+  .step { display: flex; align-items: center; gap: 8px; }
+  .step button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line);
+                 background: var(--bg); color: var(--ink); font-size: 1.2rem; cursor: pointer; }
+  .step .q { min-width: 22px; text-align: center; font-weight: 600; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card);
+         border-top: 1px solid var(--line); padding: 12px 16px; }
+  .bar .in { max-width: 640px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .bar .sum { flex: 1; }
+  .btn { border: 0; border-radius: 12px; padding: 12px 18px; font: inherit; font-weight: 600;
+         background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin: 10px 0 0; font-size: .95rem; }
+  .msg.err { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+  .msg.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .95rem; }
+  td.r, th.r { text-align: right; }
+  .total td { font-weight: 700; font-size: 1.1rem; border-bottom: 0; padding-top: 12px; }
+  .track { display: flex; gap: 6px; margin: 4px 0 12px; }
+  .track span { flex: 1; text-align: center; font-size: .8rem; padding: 6px 4px; border-radius: 8px;
+                background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .track span.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .row .btn { flex: 1; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Order at your table</h1>
+    <p class="sub">Table <span id="tableChip" class="chip">?</span></p>
+  </header>
+
+  <!-- ORDER VIEW -->
+  <div id="orderView">
+    <section id="whoBox">
+      <h2>Your details</h2>
+      <div id="tablePick" hidden>
+        <label for="tableSel">Table</label>
+        <select id="tableSel"></select>
+      </div>
+      <label for="name">Name</label>
+      <input id="name" autocomplete="name" maxlength="50" placeholder="Your name">
+      <label for="phone">Phone number</label>
+      <input id="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="10-digit mobile number">
+    </section>
+
+    <section>
+      <h2>Menu</h2>
+      <div id="menu">Loading menu…</div>
+    </section>
+    <div id="orderMsg" class="msg err" hidden></div>
+  </div>
+
+  <!-- BILL VIEW -->
+  <div id="billView" hidden>
+    <section>
+      <h2>Your order</h2>
+      <div class="track" id="track">
+        <span data-s="placed">Order placed</span><span data-s="preparing">Preparing</span><span data-s="served">Served</span>
+      </div>
+      <table>
+        <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Amount</th></tr></thead>
+        <tbody id="billRows"></tbody>
+        <tfoot><tr class="total"><td colspan="2">Total</td><td class="r" id="billTotal"></td></tr></tfoot>
+      </table>
+      <p class="sub" id="billWho"></p>
+      <div class="row">
+        <button class="btn ghost" id="moreBtn">Order more</button>
+        <button class="btn" id="payBtn">Pay now</button>
+      </div>
+      <div id="billMsg" class="msg" hidden></div>
+    </section>
+  </div>
+
+  <!-- PAID VIEW -->
+  <div id="paidView" hidden>
+    <section>
+      <h2>Payment received</h2>
+      <p>Thank you! Your bill of <strong id="paidTotal"></strong> is paid.</p>
+      <div class="row"><button class="btn" id="newBtn">Start a new order</button></div>
+    </section>
+  </div>
+</div>
+
+<div class="bar" id="cartBar">
+  <div class="in">
+    <div class="sum"><strong id="cartCount">0 items</strong><br><span class="sub" id="cartTotal">₹0</span></div>
+    <button class="btn" id="placeBtn" disabled>Place order</button>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const money = (n) => '₹' + Number(n).toFixed(2).replace(/\.00$/, '');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function api(path, method, body) {
+  const opts = { method: method || 'GET' };
+  if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+  return data;
+}
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function recall(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+
+let menu = [], cart = {}, tableNo = null, bill = null, timer = null;
+
+function show(view) {
+  $('#orderView').hidden = view !== 'order';
+  $('#billView').hidden = view !== 'bill';
+  $('#paidView').hidden = view !== 'paid';
+  $('#cartBar').hidden = view !== 'order';
+  clearInterval(timer);
+  if (view === 'bill') timer = setInterval(refreshBill, 5000);
+}
+function flash(el, text, kind) {
+  el.textContent = text; el.className = 'msg ' + kind; el.hidden = !text;
+}
+
+// ----- menu & cart -----
+function renderMenu() {
+  const groups = {};
+  menu.forEach((m) => (groups[m.category] = groups[m.category] || []).push(m));
+  $('#menu').innerHTML = Object.entries(groups).map(([cat, items]) =>
+    '<div class="cat">' + esc(cat) + '</div>' + items.map((m) =>
+      '<div class="item"><div class="nm">' + esc(m.item_name) + '<div class="pr">' + money(m.price) + '</div></div>' +
+      '<div class="step"><button aria-label="Remove one ' + esc(m.item_name) + '" data-id="' + m.item_id + '" data-d="-1">−</button>' +
+      '<span class="q" id="q' + m.item_id + '">' + (cart[m.item_id] || 0) + '</span>' +
+      '<button aria-label="Add one ' + esc(m.item_name) + '" data-id="' + m.item_id + '" data-d="1">+</button></div></div>'
+    ).join('')).join('');
+}
+$('#menu').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  const id = Number(b.dataset.id), next = Math.max(0, Math.min(20, (cart[id] || 0) + Number(b.dataset.d)));
+  if (next) cart[id] = next; else delete cart[id];
+  $('#q' + id).textContent = next; updateBar();
+});
+function updateBar() {
+  let n = 0, t = 0;
+  menu.forEach((m) => { const q = cart[m.item_id] || 0; n += q; t += q * m.price; });
+  $('#cartCount').textContent = n + (n === 1 ? ' item' : ' items');
+  $('#cartTotal').textContent = money(t) + ' (final bill is calculated by the system)';
+  $('#placeBtn').disabled = n === 0;
+}
+
+// ----- placing an order -----
+$('#placeBtn').addEventListener('click', async () => {
+  const btn = $('#placeBtn'); btn.disabled = true;
+  try {
+    const items = Object.entries(cart).map(([item_id, quantity]) => ({ item_id: Number(item_id), quantity }));
+    const name = $('#name').value, phone = $('#phone').value;
+    if (!tableNo) tableNo = Number($('#tableSel').value) || null;
+    const b = await api('/api/order', 'POST', { name, phone, table_no: tableNo, items });
+    store('name', name.trim()); store('phone', phone.trim());
+    cart = {}; flash($('#orderMsg'), '', 'err'); renderMenu(); updateBar(); showBill(b);
+  } catch (err) { flash($('#orderMsg'), err.message, 'err'); updateBar(); }
+});
+
+// ----- bill -----
+function showBill(b) {
+  bill = b; show('bill');
+  $('#tableChip').textContent = b.table_no;
+  $('#billRows').innerHTML = b.items.map((i) =>
+    '<tr><td>' + esc(i.item_name) + '</td><td class="r">' + i.quantity + '</td><td class="r">' + money(i.line_total) + '</td></tr>').join('');
+  $('#billTotal').textContent = money(b.total);
+  $('#billWho').textContent = 'Table ' + b.table_no + ' · ' + b.customer.name;
+  const order = ['placed', 'preparing', 'served'], at = order.indexOf(b.status);
+  document.querySelectorAll('#track span').forEach((s) => s.classList.toggle('on', order.indexOf(s.dataset.s) <= at));
+  $('#payBtn').textContent = 'Pay ' + money(b.total);
+}
+async function refreshBill() {
+  try {
+    const r = await api('/api/table/' + tableNo + '/bill');
+    if (r.bill) showBill(r.bill);
+    else { $('#paidTotal').textContent = money(bill ? bill.total : 0); show('paid'); }
+  } catch (e) { /* keep showing the last bill */ }
+}
+$('#moreBtn').addEventListener('click', () => { show('order'); updateBar(); window.scrollTo(0, 0); });
+$('#payBtn').addEventListener('click', async () => {
+  if (!confirm('Pay ' + money(bill.total) + ' for Table ' + bill.table_no + '?')) return;
+  try {
+    const b = await api('/api/pay/' + bill.order_id, 'POST', {});
+    $('#paidTotal').textContent = money(b.total); show('paid');
+  } catch (err) { flash($('#billMsg'), err.message, 'err'); }
+});
+$('#newBtn').addEventListener('click', () => { bill = null; show('order'); updateBar(); });
+
+// ----- start -----
+(async function init() {
+  $('#name').value = recall('name'); $('#phone').value = recall('phone');
+  const q = Number(new URLSearchParams(location.search).get('table'));
+  tableNo = Number.isInteger(q) && q > 0 ? q : null;
+  try {
+    const [m, tables] = await Promise.all([api('/api/menu'), api('/api/tables')]);
+    menu = m; renderMenu(); updateBar();
+    if (tableNo && !tables.some((t) => t.table_no === tableNo)) tableNo = null;
+    if (tableNo) {
+      $('#tableChip').textContent = tableNo;
+      const r = await api('/api/table/' + tableNo + '/bill');
+      if (r.bill) showBill(r.bill); else show('order');
+    } else {
+      $('#tablePick').hidden = false;
+      $('#tableSel').innerHTML = '<option value="">Choose your table</option>' +
+        tables.map((t) => '<option value="' + t.table_no + '">Table ' + t.table_no + ' (seats ' + t.capacity + ')</option>').join('');
+      $('#tableSel').addEventListener('change', async (e) => {
+        tableNo = Number(e.target.value) || null; $('#tableChip').textContent = tableNo || '?';
+        if (tableNo) { const r = await api('/api/table/' + tableNo + '/bill'); if (r.bill) showBill(r.bill); }
+      });
+      show('order');
+    }
+  } catch (err) {
+    $('#menu').textContent = ''; flash($('#orderMsg'), 'Could not load the menu: ' + err.message, 'err');
+  }
+})();
+</script>
+</body>
+</html>

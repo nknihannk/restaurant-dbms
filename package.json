@@ -1,0 +1,13 @@
+{
+  "name": "restaurant-dbms",
+  "version": "1.0.0",
+  "description": "Restaurant Database Management System - DBMS course project",
+  "main": "server.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.9.7"
+  }
+}
